@@ -72,10 +72,27 @@ class AppleUtils {
       // Always fired, even when Device Hub is already up: it is what switches the
       // focused device, so an early return here would strand the user on the
       // previously opened one. An unknown uuid is a safe no-op.
-      try shell.execute(
-        command: DeviceConstants.ProcessPaths.open.rawValue,
-        arguments: uuid.isEmpty ? ["-a", app.path] : [deviceHubDeepLink(uuid: uuid)]
-      )
+      if uuid.isEmpty {
+        try shell.execute(
+          command: DeviceConstants.ProcessPaths.open.rawValue,
+          arguments: ["-a", app.path]
+        )
+      } else {
+        do {
+          try shell.execute(
+            command: DeviceConstants.ProcessPaths.open.rawValue,
+            arguments: [deviceHubDeepLink(uuid: uuid)]
+          )
+        } catch {
+          // LaunchServices may not know Device Hub's devices:// scheme yet on
+          // fresh Xcode installs, which makes `open devices://…` fail. Opening
+          // the app itself still works; the user just picks the device manually.
+          try shell.execute(
+            command: DeviceConstants.ProcessPaths.open.rawValue,
+            arguments: ["-a", app.path]
+          )
+        }
+      }
       return true
     }
 

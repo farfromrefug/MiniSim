@@ -140,6 +140,32 @@ class AppleUtilsTests: XCTestCase {
     XCTAssertEqual(shellStub.lastPassedArguments, ["devices://device/open?id=\(uuid)"])
   }
 
+  func testLaunchSimulatorAppFallsBackToOpeningDeviceHubWhenDeepLinkFails() {
+    let uuid = "test-uuid"
+    mockWorkspace.mockRunningApplications = []
+    stubDeviceHubOnly()
+    // Fresh Xcode installs may not have Device Hub's devices:// scheme in the
+    // LaunchServices database yet, so `open devices://…` exits non-zero.
+    shellStub.mockedExecute = { command, arguments, _ in
+      if command == DeviceConstants.ProcessPaths.xcodeSelect.rawValue {
+        return "/Applications/Xcode.app/Contents/Developer"
+      }
+      if command == DeviceConstants.ProcessPaths.open.rawValue,
+         arguments.first?.hasPrefix("devices://") == true {
+        throw NSError(domain: "TestError", code: 1)
+      }
+      return ""
+    }
+
+    XCTAssertTrue(try AppleUtils.launchSimulatorApp(uuid: uuid))
+
+    XCTAssertEqual(shellStub.lastExecutedCommand, DeviceConstants.ProcessPaths.open.rawValue)
+    XCTAssertEqual(shellStub.lastPassedArguments, [
+      "-a",
+      "/Applications/Xcode.app/Contents/Applications/DeviceHub.app"
+    ])
+  }
+
   func testLaunchSimulatorAppDeepLinksEvenWhenDeviceHubAlreadyRunning() {
     let uuid = "other-uuid"
     // Device Hub already showing some other device: the deep link is what switches
